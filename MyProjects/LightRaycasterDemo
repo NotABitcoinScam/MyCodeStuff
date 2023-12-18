@@ -1,0 +1,117 @@
+import pygame
+import math
+import random
+
+pygame.init()
+screen=pygame.display.set_mode((0,0),pygame.FULLSCREEN)
+light=pygame.image.load('Assets/circle3.png').convert_alpha()
+scale=1.5
+light=pygame.transform.scale(light,(scale*light.get_width(),scale*light.get_height()))
+
+myobjectsurf=pygame.surface.Surface((screen.get_width(),screen.get_height()))
+
+testsurf=pygame.surface.Surface((screen.get_width(),screen.get_height()))
+testsurf.set_colorkey((0,0,0))
+
+for i in range(15):
+    size=random.randint(50,200)
+    left=random.randint(0,screen.get_width()-size)
+    top=random.randint(0,screen.get_height()-size)
+    if random.randint(1,2)==1:
+        pygame.draw.rect(myobjectsurf,'Gray',pygame.rect.Rect(left,top,size,size))
+    else:
+        pygame.draw.ellipse(myobjectsurf,'Gray',pygame.rect.Rect(left,top,size,size))
+
+darkness=50
+
+myobjectsurf.set_colorkey((0,0,0))
+
+
+class lightraycaster():
+
+    def raycastsinglesource(lightsourcesurf,
+                           shadedsurf,
+                           lightpos=pygame.Vector2(0,0),
+                           shadesurfpos=pygame.Vector2(0,0),
+                           interval=150,
+                           degs=360,
+                           grayscaleval=0):
+        
+        """Right now this only works with circular light source surfaces, May update later.   :)"""
+
+        grayscaleval=255-grayscaleval
+        global testsurf
+        newlightsourcesurf=lightsourcesurf.convert_alpha()
+        newlightsourcesurf2=pygame.surface.Surface((newlightsourcesurf.get_size()))
+        newlightsourcesurf2.fill((grayscaleval,grayscaleval,grayscaleval))
+        newlightsourcesurf2.set_colorkey((grayscaleval,grayscaleval,grayscaleval))
+        lightcenter=pygame.Vector2(newlightsourcesurf.get_width()/2,newlightsourcesurf.get_height()/2)
+        shadedsurfmask=pygame.mask.from_surface(shadedsurf)
+        lightrect=newlightsourcesurf.get_rect()
+        increment=(lightrect.width/2)/interval
+        polygonpoints=[]
+        info = pygame.display.Info()
+        screenrect = pygame.rect.Rect(-3,-3,info.current_w+6,info.current_h+6)
+        for deg in range(degs):
+            xang=math.cos(math.radians(deg*(360/degs)))
+            yang=math.sin(math.radians(deg*(360/degs)))
+            raycollided=False
+            for i in range(interval):
+                try:
+                    point=lightcenter-pygame.Vector2(xang*(i*increment),yang*(i*increment))
+                    if not screenrect.collidepoint(point+lightpos-shadesurfpos):
+                        polygonpoints.append(pygame.Vector2(point))
+                        raycollided=True
+                        break
+                    elif shadedsurfmask.get_at(point+lightpos-shadesurfpos) == 1:
+                        polygonpoints.append(pygame.Vector2(point))
+                        raycollided=True
+                        break
+                except:
+                    pass
+            if not raycollided:
+                polygonpoints.append(pygame.Vector2(point))
+        pygame.draw.polygon(newlightsourcesurf2,(0,0,0),polygonpoints)
+
+
+        newpoints=[polygonpoints[i]+lightpos for i in range(len(polygonpoints))]
+        pygame.draw.polygon(testsurf,'Blue',newpoints,width=4)
+        for point in newpoints:
+            pygame.draw.line(testsurf,'Red',pygame.mouse.get_pos(),point)
+
+        newlightsourcesurf.blit(newlightsourcesurf2,(0,0),special_flags=pygame.BLEND_RGB_ADD)
+
+        return newlightsourcesurf
+
+rays=270
+
+while True:
+    for e in pygame.event.get():
+        if e.type == pygame.QUIT: break
+        if e.type == pygame.MOUSEWHEEL:
+            rays += e.y*5
+            if rays <= 5:
+                rays=5
+    else:
+        screen.fill(pygame.color.Color('white'))
+        testsurf.fill((0,0,0))
+        screen.blit(myobjectsurf,(0,0))
+        filter = pygame.surface.Surface(screen.get_size())
+        filter.fill(pygame.color.Color(255-darkness,255-darkness,255-darkness))
+        #filter.blit(light, (pygame.mouse.get_pos()[0]-light.get_width()/2,pygame.mouse.get_pos()[1]-light.get_height()/2))
+        filter.blit(lightraycaster.raycastsinglesource(light,
+                                                      myobjectsurf,
+                                                      (pygame.mouse.get_pos()[0]-light.get_width()/2,pygame.mouse.get_pos()[1]-light.get_height()/2),
+                                                      grayscaleval=darkness,
+                                                      interval=200,
+                                                      degs=rays,
+                                                      shadesurfpos=(0,0)),
+                     (pygame.mouse.get_pos()[0]-light.get_width()/2,pygame.mouse.get_pos()[1]-light.get_height()/2))
+
+        screen.blit(filter, (0, 0), special_flags=pygame.BLEND_RGBA_SUB)
+        if pygame.mouse.get_pressed()[0]:
+            screen.blit(testsurf,(0,0))
+        pygame.display.flip()
+        continue
+    break
+
